@@ -1,0 +1,51 @@
+# File    : .gitignore
+# Purpose : Ignore build artifacts and temporary files
+# Author  : Martin Rizzo | <martinrizzo@gmail.com>
+# Repo    : https://github.com/martin-rizzo/MXSpectrum
+# License : MIT
+#- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+# Binaries and executables
+/bin/
+*.exe
+*.out
+*.elf
+*.bin
+
+# Compiler-generated files
+*.o
+*.a
+*.so
+*.d
+*.ilk
+*.pdb
+*.obj
+*.lib
+
+# IDE and editor files
+*.suo
+*.sln
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.user
+*.project
+*.cproject
+*.settings
+*.workspace
+*.idea
+*.vs
+*.vscode
+*.swp
+*.tmp
+*.bak
+*.log
+*.lock
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+*.nfo
+*.tmp
+*.lock
+
