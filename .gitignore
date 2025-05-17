@@ -49,3 +49,7 @@ Thumbs.db
 *.tmp
 *.lock
 
+# User files and folders
+*~.*
+*~/
+
