@@ -1,16 +1,20 @@
+/*
+| File    : tap2hex.c
+| Purpose : Convert a ZX-Spectrum TAP file to HEX Intel format
+| Author  : Martin Rizzo | <martinrizzo@gmail.com>
+| Repo    : https://github.com/martin-rizzo/ZXTapInspector
+| License : MIT
+|- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+|                               ZXTapInspector
+|           A simple CLI tool for inspecting ZX-Spectrum TAP files
+\_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _*/
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdarg.h>
 #include <assert.h>
-#include "zxdetoke.h"
-
-#if !defined(TRUE) && !defined(FALSE)
-#   define TRUE  1
-#   define FALSE 0
-#   define BOOL int
-#   define BYTE unsigned char
-#endif
+#include "common.h"
+#include "zxs_bas.h"
 
 /**
  * Macro to check the arguments passed by command line
@@ -20,14 +24,6 @@
  * @return True if `arg` matches either `str1` or `str2`, otherwise false.
  */
 #define ARG_EQ(arg, str1, str2) (strcmp(arg, str1) == 0 || strcmp(arg, str2) == 0)
-
-/**
- * Macro to extract a 16-bit unsigned integer from a byte stream.
- * @param ptr    A pointer to the byte stream data.
- * @param index  The starting index (in bytes) from which to read the 16-bit word.
- * @return       A 16-bit unsigned integer formed by combining the two bytes.
- */
-#define WORD_FROM_PTR(ptr, index) ( (((unsigned char *)ptr)[index]) | (((unsigned char *)ptr)[index+1] << 8) )
 
 /**
  * A binary code block in memory
@@ -201,7 +197,7 @@ ZXTapBlock* read_zx_tap_block(FILE* tap_file) {
     
     /* read the length of the block (2 bytes) */
     error        = fread(length, sizeof(length), 1, tap_file) != 1;
-    block_length = WORD_FROM_PTR(length, 0);
+    block_length = GET_LE_WORD(length, 0);
     datasize     = block_length - 2;
 
     /* read the spectrum generated data (flag + data + checksum) */
@@ -238,9 +234,9 @@ BOOL parse_zx_header_info(ZXHeaderInfo *header, const ZXTapBlock *block) {
     header->type = block->data[0];
     memcpy( header->filename, &block->data[1], 10);
     header->filename[10] = header->filename[11] = '\0';
-    header->length = WORD_FROM_PTR(block->data, 11);
-    header->param1 = WORD_FROM_PTR(block->data, 13);
-    header->param2 = WORD_FROM_PTR(block->data, 15);
+    header->length = GET_LE_WORD(block->data, 11);
+    header->param1 = GET_LE_WORD(block->data, 13);
+    header->param2 = GET_LE_WORD(block->data, 15);
     return TRUE;
 }
 
