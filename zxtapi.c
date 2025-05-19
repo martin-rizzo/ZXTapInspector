@@ -440,6 +440,43 @@ int print_zx_basic_program(FILE* tap_file, const char* selected_filename, int se
     return detokenize_zx_basic_program(block->data, block->datasize);
 }
 
+int extract_zx_blocks(FILE* tap_file, const char* output_dirname, const char* selected_fn, int selected_idx) {
+    ZXTapBlock  *block;
+    ZXHeaderInfo header;
+    int          header_index;
+    BOOL is_block_valid, is_header_valid, found;
+    int err_code = 0;
+
+    /* loop through all TAP blocks extracting the selected ones */
+    header_index   = 0;
+    found          = FALSE;
+    is_block_valid = TRUE;
+    while( is_block_valid )
+    {
+        /* read next block from TAP file */
+        block           = read_zx_tap_block(tap_file);
+        is_block_valid  = (block != NULL);
+        is_header_valid = parse_zx_header_info(&header, block);
+        if( is_header_valid )
+        {
+            /* check if the current block matches the selected criteria */
+            if     ( selected_fn!=NULL ) { found = strcmp(header.filename, selected_fn)==0; }
+            else if( selected_idx>=0   ) { found = header_index==selected_idx;              }
+            else                         { found = TRUE;                                    }
+
+            /* placeholder for block extraction */
+            if( found ) {
+                printf("Extracting: %02d_%s\n", header_index, header.filename);
+            }
+
+            ++header_index;
+        }
+        free( block ); block = NULL;
+    }
+    return err_code;
+}
+
+
 /**
  * Converts ZX-Spectrum TAP file to HEX Intel format
  * @param output_filename  The name of the output file where the converted HEX data will be written.
@@ -474,7 +511,7 @@ int main(int argc, char *argv[]) {
     char *arg;
     BinaryCode *code;
     int errcode = 0;
-    enum { CMD_HELP, CMD_VERSION, CMD_LIST, CMD_TO_HEX, CMD_PRINT, CMD_BASIC } cmd;
+    enum { CMD_HELP, CMD_VERSION, CMD_LIST, CMD_TO_HEX, CMD_PRINT, CMD_BASIC, CMD_EXTRACT } cmd;
 
     /* check if at least one parameter is provided */
     if (argc < 2) {
@@ -491,6 +528,7 @@ int main(int argc, char *argv[]) {
             if      (ARG_EQ(arg, "-l", "--list"   )) { cmd = CMD_LIST;    }
             else if (ARG_EQ(arg, "-p", "--print"  )) { cmd = CMD_PRINT;   }
             else if (ARG_EQ(arg, "-b", "--basic"  )) { cmd = CMD_BASIC;   }
+            else if (ARG_EQ(arg, "-x", "--extract")) { cmd = CMD_EXTRACT; }
             else if (ARG_EQ(arg, "-h", "--help"   )) { cmd = CMD_HELP;    }
             else if (ARG_EQ(arg, "-v", "--version")) { cmd = CMD_VERSION; }
             else {
@@ -535,6 +573,9 @@ int main(int argc, char *argv[]) {
             break;
         case CMD_BASIC:
             errcode = print_zx_basic_program(file, NULL, -1);
+            break;
+        case CMD_EXTRACT:
+            errcode = extract_zx_blocks(file, "./output", NULL, -1);
             break;
         case CMD_TO_HEX:
             errcode = convert_zx_tap_to_hex("output.hex", file);
