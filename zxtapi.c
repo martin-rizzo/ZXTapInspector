@@ -1,12 +1,33 @@
 /*
-| File    : tap2hex.c
-| Purpose : Convert a ZX-Spectrum TAP file to HEX Intel format
+| File    : zxtapi.c
+| Purpose : Main file for the ZXTapInspector tool.
 | Author  : Martin Rizzo | <martinrizzo@gmail.com>
 | Repo    : https://github.com/martin-rizzo/ZXTapInspector
 | License : MIT
 |- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 |                               ZXTapInspector
 |           A simple CLI tool for inspecting ZX-Spectrum TAP files
+|
+|    Copyright (c) 2025 Martin Rizzo
+|
+|    Permission is hereby granted, free of charge, to any person obtaining
+|    a copy of this software and associated documentation files (the
+|    "Software"), to deal in the Software without restriction, including
+|    without limitation the rights to use, copy, modify, merge, publish,
+|    distribute, sublicense, and/or sell copies of the Software, and to
+|    permit persons to whom the Software is furnished to do so, subject to
+|    the following conditions:
+|
+|    The above copyright notice and this permission notice shall be
+|    included in all copies or substantial portions of the Software.
+|
+|    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+|    EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+|    MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+|    IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+|    CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+|    TORT OR OTHERWISE, ARISING FROM,OUT OF OR IN CONNECTION WITH THE
+|    SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 \_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _*/
 #include <stdio.h>
 #include <string.h>
@@ -15,6 +36,50 @@
 #include <assert.h>
 #include "common.h"
 #include "zxs_bas.h"
+const char HELP[] =
+"Usage: zxtapi [OPTIONS] FILE.tap\n"
+"\n"
+"Description:\n"
+"  ZXTapInspector (zxtapi) is a command-line tool for inspecting ZX Spectrum .tap files.\n"
+"  It enables you to list blocks, view detailed block information, extract BASIC code,\n"
+"  and convert tape data into usable file formats.\n"
+"\n"
+"Options:\n"
+"  -l, --list\n"
+"        List all blocks contained in the specified .tap file.\n"
+"\n"
+"  -d, --detail\n"
+"        Display detailed information about each block (e.g., header data, sizes, types).\n"
+"\n"
+"  -b, --basic\n"
+"        Output BASIC code stored within one or more blocks. This command detokenizes the binary\n"
+"        data to produce human-readable BASIC code.\n"
+"\n"
+"  -x, --extract\n"
+"        Extract all blocks from the .tap file into separate files:\n"
+"          • Basic code is saved as a .bas text file.\n"
+"          • Machine code is converted to an Intel HEX (.hex) format.\n"
+"        The extracted files are placed in a folder named after the original tape file.\n"
+"\n"
+"  -h, --help\n"
+"        Show this help message and exit.\n"
+"\n"
+"  -v, --version\n"
+"        Display version information.\n"
+"\n"
+"Examples:\n"
+"  zxtapi example.tap\n"
+"      List all blocks found within 'example.tap'.\n"
+"\n"
+"  zxtapi -d example.tap\n"
+"      Show detailed block information for 'example.tap'.\n"
+"\n"
+"  zxtapi -b example.tap\n"
+"      Output the BASIC code stored in 'example.tap'.\n"
+"\n"
+"  zxtapi -x example.tap\n"
+"      Extract and convert all blocks from 'example.tap' into separate files.\n"
+"\n";
 
 /**
  * Macro to check the arguments passed by command line
@@ -122,7 +187,7 @@ void fatal_error(const char *message, ...) {
 }
 
 void print_help(char *argv[]) {
-    printf("Usage: %s [options] <filename>\n", argv[0]);
+    printf("%s", HELP);
 }
 
 /*------------------------------ .TAP LOADER ------------------------------*/

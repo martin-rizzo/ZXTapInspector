@@ -1,6 +1,6 @@
 /*
 | File    : zxs_bas.h
-| Purpose : ZX-Spectrum BASIC detokenizer function
+| Purpose : ZX-Spectrum BASIC detokenizer function.
 | Author  : Martin Rizzo | <martinrizzo@gmail.com>
 | Repo    : https://github.com/martin-rizzo/ZXTapInspector
 | License : MIT
