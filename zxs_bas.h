@@ -76,7 +76,7 @@ int zxs_count_parameters(const char* str) {
  * @param file         FILE pointer to the output file.
  * @param data         Pointer to the byte array containing the BASIC line data.
  * @param datasize     Size of the data array in bytes.
- * @return             0 on success, or an error code indicating what went wrong,
+ * @return             0 on success, or an error code indicating what went wrong.
  */
 int zxs_fprint_basic_line(FILE* file, BYTE* data, unsigned datasize) {
     int i; BYTE byte; unsigned char last_char;
@@ -151,7 +151,7 @@ int zxs_fprint_basic_line(FILE* file, BYTE* data, unsigned datasize) {
  * @param file     FILE pointer to the output file.
  * @param data     Pointer to the byte array containing the tokenized BASIC program data.
  * @param datasize Size of the data array in bytes.
- * @return         0 on success, or an error code indicating what went wrong,
+ * @return         0 on success, or an error code indicating what went wrong.
  */
 int zxs_fprint_basic_program(FILE* file, BYTE* data, unsigned datasize) {
     const char BUFFER_READ_OVERFLOW_MSG[] = "Exceeding input buffer limit during detokenization";
