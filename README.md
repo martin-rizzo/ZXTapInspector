@@ -1,17 +1,17 @@
 # ZXTapInspector
 
-ZXTapInspector is a command-line tool written entirely in C designed for inspecting ZX Spectrum .tap files. The tool lets you list blocks, view detailed information about each block, extract BASIC code, and convert tape data into useful formats.
+**ZXTapInspector** is a command-line tool written entirely in C designed for inspecting ZX-Spectrum ".tap" files. The tool lets you list blocks, view detailed information about each block, extract BASIC code, and convert tape data into useful formats.
 
 ## Features
 
 - **Block Listing:**  
-  Displays all blocks contained in a .tap file (option -l/--list).
-
-- **Detailed Information:**  
-  Provides details about each block, such as header data, sizes, and types (option -d/--detail).
+  Displays all blocks contained in a .tap file (option -l/--list or -d/--detail).
 
 - **BASIC Code Extraction:**  
   Detokenizes binary data to output stored BASIC code (option -b/--basic).
+
+- **Binary Data Extraction:**  
+  ...
 
 - **Extraction and Conversion:**  
   Extracts all blocks from the .tap file into separate files:  
@@ -33,7 +33,7 @@ To compile ZXTapInspector, you need to have a C compiler installed. Follow these
 2. **Compile the Project:**  
 
    ```
-   gcc -o zxtapi src/zxtapi.c
+   gcc -o zxtapi zxtapi.c
    ```
 
 ## Usage
@@ -54,5 +54,6 @@ This project is open source and contributions are welcome. If you find any bugs 
 
 ## License
 
-This project is distributed under the MIT License.  
-See the LICENSE file for details.
+Copyright (c) 2024-2025 Martin Rizzo  
+This project is licensed under the MIT license.  
+See the ["LICENSE"](LICENSE) file for details.
