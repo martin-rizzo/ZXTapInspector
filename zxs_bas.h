@@ -20,6 +20,7 @@
   - https://en.wikipedia.org/wiki/ZX_Spectrum_character_set#Character_set
 */
 
+#define ZXS_COPYRIGHT_CHAR "{(C)}"
 static const char* ZXS_CTRL_CHARS[] = {
 /* 0x00 */   "{00}", "{01}", "{02}", "{03}", "{04}", "{05}",  "\t" , "{07}",
 /* 0x08 */   "{08}", "{09}", "{0A}", "{0B}", "{0C}", "\n"  ,  ""   , "{0F}",
@@ -27,20 +28,20 @@ static const char* ZXS_CTRL_CHARS[] = {
 /* 0x18 */   "{18}", "{19}", "{1A}", "{1B}", "{1C}", "{1D}", "{1E}", "{1F}"
 };
 
-static const int   ZXS_GRAPH_START   = 0x80;
+#define            ZXS_GRAPH_CHARS_START 0x80
 static const char* ZXS_GRAPH_CHARS[] = {
 /* 0x80 */   "{-8}", "{-1}", "{-2}", "{-3}", "{-4}", "{-5}", "{-6}", "{-7}",
 /* 0x88 */   "{+7}", "{+6}", "{+5}", "{+4}", "{+3}", "{+2}", "{+1}", "{+8}"
 };
 
-static const int   ZXS_UDG_START   = 0x90;
+#define            ZXS_UDG_CHARS_START 0x90
 static const char* ZXS_UDG_CHARS[] = {
 /* 0x90 */   "{A}", "{B}", "{C}", "{D}", "{E}", "{F}", "{G}", "{H}",
 /* 0x98 */   "{I}", "{J}", "{K}", "{L}", "{M}", "{N}", "{O}", "{P}",
 /* 0xA0 */   "{Q}", "{R}", "{S}", "{T}", "{U}"
 };
 
-static const int   ZXS_KEYWORDS_START = 0xA3;
+#define            ZXS_KEYWORDS_START 0xA3
 static const char* ZXS_KEYWORDS[] = {
 /* 0xA3 */                                         " SPECTRUM ", " PLAY "  , "RND"      , "INKEY$"  , "PI"      ,
 /* 0xA8 */   "FN "       , "POINT "     , "SCREEN$ ", "ATTR "  , "AT "     , "TAB "     , "VAL$ "   , "CODE "   ,
@@ -56,10 +57,9 @@ static const char* ZXS_KEYWORDS[] = {
 /* 0xF8 */   " SAVE "    , " RANDOMIZE ", " IF "    , " CLS "  , " DRAW "  , " CLEAR "  , " RETURN ", " COPY "
 };
 
-#define ZXS_COPYRIGHT_CHAR "{(C)}"
 
 /**
- * Counts the number of '%' parameters in a string
+ * Counts the number of '%' parameters in a string.
  * @param str The input string to analyze.
  * @return    The number of '%' characters found in the string.
  */
@@ -72,19 +72,29 @@ int zxs_count_parameters(const char* str) {
 }
 
 /**
- * Prints a ZX Spectrum BASIC line in human-readable format
+ * Prints a ZX Spectrum BASIC line in human-readable format to a file.
+ * @param file         FILE pointer to the output file.
  * @param data         Pointer to the byte array containing the BASIC line data.
  * @param datasize     Size of the data array in bytes.
+ * @return             0 on success, or an error code indicating what went wrong,
  */
-int zxs_print_basic_line(BYTE* data, unsigned datasize) {
+int zxs_fprint_basic_line(FILE* file, BYTE* data, unsigned datasize) {
     int i; BYTE byte; unsigned char last_char;
     const char *control_name; int param1, param2;
     const char *keyword;
     BOOL in_quotes, in_rem;
     int  err_code = 0;
 
-    in_quotes = FALSE; in_rem = FALSE; last_char = 0;
-    for( i = 0; i < datasize; i++ ) {
+    /* check parameters */
+    if( file == NULL ) { err_code = 1; /* invalid parameter */ }
+    if( data == NULL ) { datasize = 0; }
+
+    /* iterates over the `data` buffer             */
+    /* printing each byte in human-readable format */
+    last_char = 0;
+    in_quotes = in_rem = FALSE;
+    for( i = 0 ; i < datasize && !err_code ; i++ )
+    {
         keyword = control_name = NULL;
         byte    = data[i];
 
@@ -93,32 +103,32 @@ int zxs_print_basic_line(BYTE* data, unsigned datasize) {
             control_name = ZXS_CTRL_CHARS[byte];
             param1       = (i+1)<datasize ? data[i+1] : 0;
             param2       = (i+2)<datasize ? data[i+2] : 0;
-            printf(control_name, param1, param2);
+            fprintf(file, control_name, param1, param2);
 
-            /* 0E: marker for a 5-byte number (already printed in ASCII format), */
-            /* skip these bytes */
+            /* 0E: marker for a 5-byte number (already printed in ASCII format), 
+             * skip these bytes */
             if( byte == 0x0E ) { i += 5; }
             else               { i += zxs_count_parameters(control_name); }
 
         /*== ASCII CHARS ==*/
         } else if( byte < 0x80 ) {
-            if( byte == 0x7F ) { printf(ZXS_COPYRIGHT_CHAR); }
-            else               { printf("%c", byte); }
+            if( byte == 0x7F ) { fprintf(file, ZXS_COPYRIGHT_CHAR); }
+            else               { fprintf(file, "%c", byte);         }
 
-        /*== GRAPHICS CHARS ==*/
+            /*== GRAPHICS CHARS ==*/
         } else if( byte < 0x90 ) {
-            printf("%s", ZXS_GRAPH_CHARS[byte - ZXS_GRAPH_START]);
+            fprintf(file, "%s", ZXS_GRAPH_CHARS[byte - ZXS_GRAPH_CHARS_START]);
 
-        /*== USER-DEFINED GRAPHICS CHARS (UDG) ==*/
+            /*== USER-DEFINED GRAPHICS CHARS (UDG) ==*/
         } else if( byte < (in_quotes ? 0xA5 : 0xA3) ) {
-            printf("%s", ZXS_UDG_CHARS[byte - ZXS_UDG_START]);
-    
+            fprintf(file, "%s", ZXS_UDG_CHARS[byte - ZXS_UDG_CHARS_START]);
+
         /*== KEYWORDS ==*/
         } else {
             keyword = ZXS_KEYWORDS[byte - ZXS_KEYWORDS_START];
             if( last_char == ' ' && keyword[0] == ' ' ) { ++keyword; }
-            last_char = keyword[ strlen(keyword)-1 ] == ' ';
-            printf("%s", keyword);
+            last_char = (keyword[ strlen(keyword)-1 ] == ' ');
+            fprintf(file, "%s", keyword);
         }
 
         /* before closing the loop, */
@@ -137,33 +147,39 @@ int zxs_print_basic_line(BYTE* data, unsigned datasize) {
 }
 
 /**
- * Detokenizes a ZX Spectrum BASIC program and prints it in human-readable format.
+ * Prints a ZX Spectrum BASIC program in human-readable format to a file.
+ * @param file     FILE pointer to the output file.
  * @param data     Pointer to the byte array containing the tokenized BASIC program data.
  * @param datasize Size of the data array in bytes.
- * @return         on success, returns 0;
- *                 on failure, returns an error code indicating what went wrong.
+ * @return         0 on success, or an error code indicating what went wrong,
  */
-int detokenize_zx_basic_program(BYTE* data, unsigned datasize) {
-    const char BUFFER_OVERFLOW_MSG[] = "Exceeding buffer limit during detokenization";
-    int err_code = 0;
+int zxs_fprint_basic_program(FILE* file, BYTE* data, unsigned datasize) {
+    const char BUFFER_READ_OVERFLOW_MSG[] = "Exceeding input buffer limit during detokenization";
     unsigned line_number, line_length;
-    while( datasize>0 )
+    int err_code = 0;
+
+    /* check parameters */
+    if( file == NULL ) { err_code = 1; /* invalid parameter */ }
+    if( data == NULL ) { datasize = 0; }
+
+    /* process 'data' buffer (line by line) until all bytes have been consumed */
+    while( datasize>0 && !err_code )
     {
         /* extract line number and length in the safest way possible */
-        if( 2 > datasize ) { error(BUFFER_OVERFLOW_MSG); return 1; }
+        if( 2 > datasize ) { error(BUFFER_READ_OVERFLOW_MSG); return 1; }
         line_number = GET_BE_WORD(data, 0); data+=2; datasize-=2;
         if( line_number >= 16384 ) { return 0; }
-        if( 2 > datasize ) { error(BUFFER_OVERFLOW_MSG); return 1; }
+        if( 2 > datasize ) { error(BUFFER_READ_OVERFLOW_MSG); return 1; }
         line_length = GET_LE_WORD(data, 0); data+=2; datasize-=2;
-        if( line_length > datasize ) { error(BUFFER_OVERFLOW_MSG); return 1; }
+        if( line_length > datasize ) { error(BUFFER_READ_OVERFLOW_MSG); return 1; }
         
         /* process and print the BASIC line */
         printf("%5d", line_number);
-        err_code = zxs_print_basic_line(data, line_length);
-        if( err_code != 0 ) { return err_code; }
+        err_code = zxs_fprint_basic_line(file, data, line_length);
+        if( err_code ) { return err_code; }
         /* printf("\n"); */
 
-        data   += line_length;
+        data     += line_length;
         datasize -= line_length;
     }
     return err_code;

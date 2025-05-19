@@ -393,7 +393,7 @@ int print_zx_tap_blocks(FILE* tap_file, BOOL one_line) {
  *                          If provided, the function will search for a block at this index.
  * @return 0 on success, or an error code otherwise.
  */
-int print_zx_basic_program(FILE* tap_file, const char* selected_filename, int selected_index) {
+int fprint_zx_basic_program(FILE* output_file, FILE* tap_file, const char* selected_filename, int selected_index) {
     ZXTapBlock  *block;
     ZXHeaderInfo header;
     int          block_index;
@@ -437,7 +437,7 @@ int print_zx_basic_program(FILE* tap_file, const char* selected_filename, int se
     { error("Error reading BASIC program, no data block found"); return 1; }
 
     /* print the detokenized BASIC program and return */
-    return detokenize_zx_basic_program(block->data, block->datasize);
+    return zxs_fprint_basic_program(output_file, block->data, block->datasize);
 }
 
 int extract_zx_blocks(FILE* tap_file, const char* output_dirname, const char* selected_fn, int selected_idx) {
@@ -505,12 +505,12 @@ int convert_zx_tap_to_hex(const char* output_filename, FILE* tap_file) {
  */
 int main(int argc, char *argv[]) {
     int  i;
-    FILE *file = NULL;
+    FILE *tap_file = NULL;
     char filename[1024] = "";
     int  non_flag_count = 0;
     char *arg;
     BinaryCode *code;
-    int errcode = 0;
+    int err_code = 0;
     enum { CMD_HELP, CMD_VERSION, CMD_LIST, CMD_TO_HEX, CMD_PRINT, CMD_BASIC, CMD_EXTRACT } cmd;
 
     /* check if at least one parameter is provided */
@@ -561,29 +561,29 @@ int main(int argc, char *argv[]) {
     }
 
     /* proceed with file operations based on the selected command */
-    errcode = 0;
-    file    = fopen(filename, "rb");
-    if( !file ) { fatal_error("Failed to open file '%s'", filename); }
+    err_code  = 0;
+    tap_file = fopen(filename, "rb");
+    if( !tap_file ) { fatal_error("Failed to open file '%s'", filename); }
     switch( cmd ) {
         case CMD_LIST:
-            errcode = print_zx_tap_blocks(file, TRUE);
+            err_code = print_zx_tap_blocks(tap_file, TRUE);
             break;
         case CMD_PRINT:
-            errcode = print_zx_tap_blocks(file, FALSE);
+            err_code = print_zx_tap_blocks(tap_file, FALSE);
             break;
         case CMD_BASIC:
-            errcode = print_zx_basic_program(file, NULL, -1);
+            err_code = fprint_zx_basic_program(stdout, tap_file, NULL, -1);
             break;
         case CMD_EXTRACT:
-            errcode = extract_zx_blocks(file, "./output", NULL, -1);
+            err_code = extract_zx_blocks(tap_file, "./output", NULL, -1);
             break;
         case CMD_TO_HEX:
-            errcode = convert_zx_tap_to_hex("output.hex", file);
+            err_code = convert_zx_tap_to_hex("output.hex", tap_file);
             break;
         default:
             fatal_error( "Unknown command '%d'", cmd );
     }
-    fclose(file);
-    return errcode;
+    fclose(tap_file);
+    return err_code;
 }
 
