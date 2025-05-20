@@ -36,50 +36,51 @@
 #include <assert.h>
 #include "common.h"
 #include "zxs_bas.h"
+#include "zxs_tap.h"
 #include "fmt_hex.h"
 const char HELP[] =
-"Usage: zxtapi [OPTIONS] FILE.tap\n"
-"\n"
-"Description:\n"
-"  ZXTapInspector (zxtapi) is a command-line tool for inspecting ZX Spectrum .tap files.\n"
-"  It enables you to list blocks, view detailed block information, extract BASIC code,\n"
-"  and convert tape data into usable file formats.\n"
-"\n"
-"Options:\n"
-"  -l, --list\n"
-"        List all blocks contained in the specified .tap file.\n"
-"\n"
-"  -d, --detail\n"
-"        Display detailed information about each block (e.g., header data, sizes, types).\n"
-"\n"
-"  -b, --basic\n"
-"        Output BASIC code stored within one or more blocks. This command detokenizes the binary\n"
-"        data to produce human-readable BASIC code.\n"
-"\n"
-"  -x, --extract\n"
-"        Extract all blocks from the .tap file into separate files:\n"
-"          • Basic code is saved as a .bas text file.\n"
-"          • Machine code is converted to an Intel HEX (.hex) format.\n"
-"        The extracted files are placed in a folder named after the original tape file.\n"
-"\n"
-"  -h, --help\n"
-"        Show this help message and exit.\n"
-"\n"
-"  -v, --version\n"
-"        Display version information.\n"
-"\n"
-"Examples:\n"
-"  zxtapi example.tap\n"
-"      List all blocks found within 'example.tap'.\n"
-"\n"
-"  zxtapi -d example.tap\n"
-"      Show detailed block information for 'example.tap'.\n"
-"\n"
-"  zxtapi -b example.tap\n"
-"      Output the BASIC code stored in 'example.tap'.\n"
-"\n"
-"  zxtapi -x example.tap\n"
-"      Extract and convert all blocks from 'example.tap' into separate files.\n"
+"Usage: zxtapi [OPTIONS] FILE.tap"                                                         "\n"
+""                                                                                         "\n"
+"Description:"                                                                             "\n"
+"  ZXTapInspector (zxtapi) is a command-line tool for inspecting ZX Spectrum .tap files."  "\n"
+"  It enables you to list blocks, view detailed block information, extract BASIC code,"    "\n"
+"  and convert tape data into usable file formats."                                        "\n"
+""                                                                                         "\n"
+"Options:"                                                                                 "\n"
+"  -l, --list"                                                                             "\n"
+"        List all blocks contained in the specified .tap file."                            "\n"
+""                                                                                         "\n"
+"  -d, --detail"                                                                           "\n"
+"        Display detailed information about each block (e.g., header data, sizes, types)." "\n"
+""                                                                                         "\n"
+"  -b, --basic"                                                                            "\n"
+"        Output BASIC code stored within one or more blocks. This command detokenizes the binary""\n"
+"        data to produce human-readable BASIC code."                                       "\n"
+""                                                                                         "\n"
+"  -x, --extract"                                                                          "\n"
+"        Extract all blocks from the .tap file into separate files:"                       "\n"
+"          • Basic code is saved as a .bas text file."                                     "\n"
+"          • Machine code is converted to an Intel HEX (.hex) format."                     "\n"
+"        The extracted files are placed in a folder named after the original tape file."   "\n"
+""                                                                                         "\n"
+"  -h, --help"                                                                             "\n"
+"        Show this help message and exit."                                                 "\n"
+""                                                                                         "\n"
+"  -v, --version"                                                                          "\n"
+"        Display version information."                                                     "\n"
+""                                                                                         "\n"
+"Examples:"                                                                                "\n"
+"  zxtapi example.tap"                                                                     "\n"
+"      List all blocks found within 'example.tap'."                                        "\n"
+""                                                                                         "\n"
+"  zxtapi -d example.tap"                                                                  "\n"
+"      Show detailed block information for 'example.tap'."                                 "\n"
+""                                                                                         "\n"
+"  zxtapi -b example.tap"                                                                  "\n"
+"      Output the BASIC code stored in 'example.tap'."                                     "\n"
+""                                                                                         "\n"
+"  zxtapi -x example.tap"                                                                  "\n"
+"      Extract and convert all blocks from 'example.tap' into separate files."             "\n"
 "\n";
 
 /**
@@ -191,197 +192,7 @@ void print_help(char *argv[]) {
     printf("%s", HELP);
 }
 
-/*------------------------------ .TAP LOADER ------------------------------*/
-
-#define ZX_HEADER_SIZE 17
-#define ZX_HEADER_FLAG 0x00
-#define ZX_DATA_FLAG   0xFF
-
-/**
- * A ZX-Spectrum TAP file block
- */
-typedef struct _ZXTapBlock {
-    unsigned flag;         /**< Control byte indicating block type (00 for headers, FF for data blocks) */
-    unsigned checksum;     /**< 8-bit checksum of the data block for error detection */
-    unsigned datasize;     /**< Size of the data array in bytes */
-    BYTE     data[1];      /**< Flexible array containing the actual block data */
-} ZXTapBlock;
-
-/**
- * Header types for ZX-Spectrum TAP file blocks
- */
-typedef enum _ZXHeaderType {
-    BASIC_PROGRAM   = 0,  /**< The block contains a BASIC program */
-    NUMBER_ARRAY    = 1,  /**< The block contains a number array */
-    CHARACTER_ARRAY = 2,  /**< The block contains a character array */
-    BINARY_CODE     = 3   /**< The block contains binary code (machine language) */
-} ZXHeaderType;
-
-/**
- * The information in a ZX-Spetrum TAP block header
- */
-typedef struct _ZXHeaderInfo {
-    ZXHeaderType type;         /**< Type of the block (e.g., BASIC_PROGRAM, BINARY_CODE, ..) */
-    char         filename[12]; /**< filename (null-terminated) */
-    unsigned     length;       /**< Length of the program/data in bytes */
-    unsigned     param1;       /**< Additional parameter 1 (specific to the block type) */
-    unsigned     param2;       /**< Additional parameter 2 (specific to the block type) */
-} ZXHeaderInfo;
-
-/**
- * Converts a ZXHeaderType value to its corresponding string representation.
- * @param type     The ZXHeaderType enum value to convert.
- * @param buffer64 A buffer of at least 64 characters.
- * @return The string representation of the header type.
- */
-const char *get_zx_header_type_name(ZXHeaderType type, char* buffer64) {
-    /* name deberia ser un buffer de 64 characters */
-    assert( buffer64 != NULL );
-    switch(type) {
-        case BASIC_PROGRAM:   return "BASIC-PROGRAM";
-        case NUMBER_ARRAY:    return "NUMBER-ARRAY";
-        case CHARACTER_ARRAY: return "CHARACTER-ARRAY";
-        case BINARY_CODE:     return "BINARY-CODE";
-    }
-    sprintf(buffer64, "UNKNOWN(%d)", type);
-    return buffer64;
-}
-
-/**
- * Reads a ZX Spectrum TAP file block from a file
- * @param tap_file The file pointer to the ZX Spectrum TAP file
- * @return A pointer to the allocated ZXTapBlock structure on success, or NULL on failure
- * @note   The caller is responsible for freeing the allocated memory using free()
- */
-ZXTapBlock* read_zx_tap_block(FILE* tap_file) {
-    ZXTapBlock* block = NULL;
-    unsigned block_length, datasize;
-    BYTE length[2], flag, checksum;
-    BOOL error = FALSE;
-    
-    /* read the length of the block (2 bytes) */
-    error        = fread(length, sizeof(length), 1, tap_file) != 1;
-    block_length = GET_LE_WORD(length, 0);
-    datasize     = block_length - 2;
-
-    /* read the spectrum generated data (flag + data + checksum) */
-    block = malloc(sizeof(ZXTapBlock) + datasize);
-    error = error || block == NULL;
-    error = error || fread(&flag      , sizeof(BYTE),        1, tap_file) != 1;
-    error = error || fread(block->data, sizeof(BYTE), datasize, tap_file) != datasize;
-    error = error || fread(&checksum  , sizeof(BYTE),        1, tap_file) != 1;
-
-    /* if there was an error then return NULL */
-    if( error ) { free(block); return NULL; }
-
-    /* set the block properties and return it */
-    block->flag     = flag;
-    block->checksum = checksum;
-    block->datasize = datasize;
-    return block;
-}
-
-/**
- * Parses header information from a ZX-Spectrum TAP block
- * @param[out] header Pointer to the ZXHeaderInfo structure to store parsed data.
- * @param[in]  block  Pointer to the ZXTapBlock containing the header data.
- * @return TRUE if the block is a valid header block and parsing succeeds, FALSE otherwise.
- */
-BOOL parse_zx_header_info(ZXHeaderInfo *header, const ZXTapBlock *block) {
-    assert( header!=NULL );
-    if( block==NULL ) {
-        return FALSE;
-    }
-    if( block->flag != ZX_HEADER_FLAG || block->datasize != ZX_HEADER_SIZE ) {
-        return FALSE;
-    }
-    header->type = block->data[0];
-    memcpy( header->filename, &block->data[1], 10);
-    header->filename[10] = header->filename[11] = '\0';
-    header->length = GET_LE_WORD(block->data, 11);
-    header->param1 = GET_LE_WORD(block->data, 13);
-    header->param2 = GET_LE_WORD(block->data, 15);
-    return TRUE;
-}
-
-/**
- * Prints the header information of a ZX-Spectrum TAP block
- * @param header Pointer to the ZXHeaderInfo structure containing the header data.
- */
-void print_zx_header_info(ZXHeaderInfo *header, int block_index, BOOL one_line) {
-    char buffer64[64];
-    if( one_line ) {
-        printf("%3d:%-10s %-16s %6d %6d %6d\n",
-               block_index,
-               header->filename,
-               get_zx_header_type_name(header->type, buffer64),
-               header->length,
-               header->param1,
-               header->param2
-        );
-    } else {
-        printf("Header Info:\n");
-        printf("----------------------------\n");
-        printf("Type:        %s\n", get_zx_header_type_name(header->type, buffer64));
-        printf("Filename:    %s\n", header->filename);
-        printf("Length:      %u\n", header->length);
-        printf("Param1:      %u\n", header->param1);
-        printf("Param2:      %u\n", header->param2);
-        printf("----------------------------\n");
-    }
-}
-
-/**
- * Prints the information of a ZX-Spectrum TAP block
- * @param block Pointer to the ZXTapBlock structure containing the block data.
- */
-void print_zx_block_info(ZXTapBlock *block, int block_index, BOOL one_line) {
-    if( one_line ) {
-        printf("%3d:%-10s %-16s %6d\n", 
-            block_index,
-            "",
-            "_data",
-            block->datasize
-        );
-    }
-    else {
-        printf("Block Info:\n");
-        printf("----------------------------\n");
-        printf("Flag:        %u\n", block->flag);
-        printf("Checksum:    %u\n", block->checksum);
-        printf("Data Size:   %u\n", block->datasize);
-        printf("----------------------------\n");
-    }
-}
-
 /*------------------------------ SUB-COMMANDS ------------------------------*/
-
-/**
- * Prints ZX-Spectrum TAP file blocks to standard output
- * @param tap_file Pointer to the TAP file stream (must be opened in read mode).
- * @param one_line Flag indicating whether to print information in a single line format.
- *                 If TRUE, output is compact; if FALSE, output is detailed.
- * @return 0 on successful completion. 
- */
-int print_zx_tap_blocks(FILE* tap_file, BOOL one_line) {
-    ZXTapBlock  *block;
-    ZXHeaderInfo header;
-    BOOL is_valid_block;
-    int block_index;
-
-    block_index    = 0;
-    is_valid_block = TRUE;
-    while( is_valid_block ) {
-        block          = read_zx_tap_block(tap_file);
-        is_valid_block = (block != NULL);
-        if( is_valid_block ) {
-            if( parse_zx_header_info(&header, block) ) { print_zx_header_info(&header, block_index, one_line); }
-            else                                       { print_zx_block_info(block, block_index, one_line);    }
-        }
-        free( block ); block = NULL; ++block_index;
-    }
-    return 0;
-}
 
 /**
  * Searches for a specific header in a TAP file based on optional criteria.
@@ -394,10 +205,11 @@ int print_zx_tap_blocks(FILE* tap_file, BOOL one_line) {
  * @param name      Optional block name to match. If NULL, name-based filtering is skipped.
  * @param index     Optional block index to match. If -1, index-based filtering is skipped.
  * @param type      Header type to match. This parameter is only used if both name and index are omitted.
- * @return TRUE if a matching header is found, FALSE otherwise.
+ * @return
+ *    TRUE if a matching header is found, FALSE otherwise.
  */
-BOOL find_header(ZXHeaderInfo* header, FILE* tap_file, const char* name, int index, ZXHeaderType type) {
-    ZXTapBlock  *block;
+BOOL find_header(ZXSHeader* header, FILE* tap_file, const char* name, int index, ZXS_DATATYPE type) {
+    ZXSTapBlock *block;
     int          header_index;
     BOOL is_block_valid, found;
 
@@ -407,18 +219,68 @@ BOOL find_header(ZXHeaderInfo* header, FILE* tap_file, const char* name, int ind
     while( is_block_valid && !found )
     {
         /* read next block from TAP file */
-        block           = read_zx_tap_block(tap_file);
+        block           = zxs_read_tap_block(tap_file);
         is_block_valid  = (block != NULL);
-        if( is_block_valid && parse_zx_header_info(header, block) ) {
+        if( is_block_valid && zxs_parse_header(header, block) ) {
             /* check if the current header matches the selected criteria */
             if( name             ) { found = (0==strcmp(header->filename, name)); }
             if( index>=0         ) { found = (header_index == index); }
-            if( !name && index<0 ) { found = (header->type == type ); }
+            if( !name && index<0 ) { found = (header->datatype == type ); }
             ++header_index;
         }
         free( block ); block = NULL;
     }
     return found;
+}
+
+/**
+ * Prints a formatted list of TAP blocks to the specified output file.
+ * @param output    FILE pointer to the output stream where the block list will be printed.
+ * @param tap_file  FILE pointer to the TAP file being processed.
+ * @return
+ *    0 on success, or an error code indicating what went wrong
+ */
+int fprint_block_list(FILE* output, FILE* tap_file) {
+    ZXSTapBlock *block;
+    ZXSHeader    header;
+    int          header_index, block_index;
+    BOOL         is_block_valid;
+    char buffer16[16];
+    char buffer32[32];
+    int  err_code = 0;
+
+    /* loop through all TAP blocks */
+    header_index   = 0;
+    block_index    = 0;
+    is_block_valid = TRUE;
+    printf("IDX: name       : type         : Length : Param1 : Param2 \n");
+    printf("---:------------:--------------:--------:--------:--------\n");
+    while( is_block_valid )
+    {
+        /* read next block from TAP file */
+        block           = zxs_read_tap_block(tap_file);
+        is_block_valid  = (block != NULL);
+        if( is_block_valid ) {
+            if( zxs_parse_header(&header, block) )
+            {
+                sprintf(buffer16, "\"%s\"", header.filename);
+                printf(" %02d:%-12s:%-14s %6d    %6d  %6d\n",
+                       header_index, buffer16,
+                       zxs_get_datatype_name(header.datatype, buffer32),
+                       header.length, header.param1, header.param2
+                       );
+                ++header_index; block_index=0;
+            }
+            else {
+                sprintf(buffer16, "//data%d", block_index);
+                printf("    %-12s %-14s %6d\n", 
+                       "", buffer16, block->datasize
+                       );
+            }
+        }
+        free( block ); block = NULL;
+    }
+    return err_code;
 }
 
 /**
@@ -432,23 +294,24 @@ BOOL find_header(ZXHeaderInfo* header, FILE* tap_file, const char* name, int ind
  * @param tap_file       File pointer to the TAP file containing the ZX Spectrum data.
  * @param selected_name  Optional block name to match. If NULL, name-based filtering is skipped.
  * @param selected_idx   Optional block index to match. If -1, index-based filtering is skipped.
- * @return               0 on success, or an error code indicating what went wrong.
+ * @return
+ *    0 on success, or an error code indicating what went wrong
  */
 int fprint_zx_basic_program(FILE* output, FILE* tap_file, const char* selected_name, int selected_idx) {
-    ZXHeaderInfo header; ZXTapBlock *block; BOOL found;
+    ZXSHeader header; ZXSTapBlock *block; BOOL found;
     int err_code = 0;
 
     /* search for the selected BASIC program in the TAP file */
-    found = find_header(&header, tap_file, selected_name, selected_idx, BASIC_PROGRAM);
+    found = find_header(&header, tap_file, selected_name, selected_idx, ZXS_DATATYPE_BASIC);
 
     /* handle error cases */
     if( !found  )
     { error("No BASIC program found"); return 1; }
-    if( found && header.type!=BASIC_PROGRAM )
+    if( found && header.datatype!=ZXS_DATATYPE_BASIC )
     { error("Selected block is not a BASIC program"); return 1; }
 
     /* read the actual data block after header */
-    block = read_zx_tap_block(tap_file);
+    block = zxs_read_tap_block(tap_file);
     if( block==NULL )
     { error("Error reading BASIC program, no data block found"); return 1; }
 
@@ -468,23 +331,24 @@ int fprint_zx_basic_program(FILE* output, FILE* tap_file, const char* selected_n
  * @param tap_file       File pointer to the TAP file containing the ZX Spectrum data.
  * @param selected_fn    Optional filename to match. If NULL, filename-based filtering is skipped.
  * @param selected_idx   Optional block index to match. If -1, index-based filtering is skipped.
- * @return               0 on success, or an error code indicating what went wrong.
+ * @return
+ *    0 on success, or an error code indicating what went wrong
  */
 int fprint_zx_binary_code(FILE* output, FILE* tap_file, const char* selected_fn, int selected_idx) {
-    ZXHeaderInfo header; ZXTapBlock *block; BOOL found;
+    ZXSHeader header; ZXSTapBlock *block; BOOL found;
     int err_code = 0;
 
     /* search for the selected binary code in the TAP file */
-    found = find_header(&header, tap_file, selected_fn, selected_idx, BINARY_CODE);
+    found = find_header(&header, tap_file, selected_fn, selected_idx, ZXS_DATATYPE_CODE);
 
     /* handle error cases */
     if( !found  )
     { error("No binary code found"); return 1; }
-    if( found && header.type!=BINARY_CODE )
+    if( found && header.datatype!=ZXS_DATATYPE_CODE )
     { error("Selected block is not a binary code"); return 1; }
 
     /* read the actual data block after header */
-    block = read_zx_tap_block(tap_file);
+    block = zxs_read_tap_block(tap_file);
     if( block==NULL )
     { error("Error reading binary code, no data block found"); return 1; }
 
@@ -495,8 +359,8 @@ int fprint_zx_binary_code(FILE* output, FILE* tap_file, const char* selected_fn,
 }
 
 int extract_zx_blocks(FILE* tap_file, const char* output_dirname, const char* selected_fn, int selected_idx) {
-    ZXTapBlock  *block;
-    ZXHeaderInfo header;
+    ZXSTapBlock  *block;
+    ZXSHeader header;
     int          header_index;
     BOOL is_block_valid, is_header_valid, found;
     int err_code = 0;
@@ -508,9 +372,9 @@ int extract_zx_blocks(FILE* tap_file, const char* output_dirname, const char* se
     while( is_block_valid )
     {
         /* read next block from TAP file */
-        block           = read_zx_tap_block(tap_file);
+        block           = zxs_read_tap_block(tap_file);
         is_block_valid  = (block != NULL);
-        is_header_valid = parse_zx_header_info(&header, block);
+        is_header_valid = zxs_parse_header(&header, block);
         if( is_header_valid )
         {
             /* check if the current block matches the selected criteria */
@@ -565,7 +429,7 @@ int main(int argc, char *argv[]) {
     char *arg;
     BinaryCode *code;
     int err_code = 0;
-    enum { CMD_HELP, CMD_VERSION, CMD_LIST, CMD_TO_HEX, CMD_PRINT, CMD_BASIC, CMD_BINARY, CMD_EXTRACT } cmd;
+    enum { CMD_HELP, CMD_VERSION, CMD_LIST, CMD_DETAILS, CMD_BASIC, CMD_BINARY, CMD_EXTRACT } cmd;
 
     /* check if at least one parameter is provided */
     if (argc < 2) {
@@ -575,12 +439,12 @@ int main(int argc, char *argv[]) {
     }
 
     /* process each argument */
-    cmd = CMD_TO_HEX;
+    cmd = CMD_LIST;
     for(i = 1; i < argc; i++) {
         arg = argv[i];
         if( arg[0] == '-' ) {
             if      (ARG_EQ(arg, "-l", "--list"   )) { cmd = CMD_LIST;    }
-            else if (ARG_EQ(arg, "-p", "--print"  )) { cmd = CMD_PRINT;   }
+            else if (ARG_EQ(arg, "-d", "--detail" )) { cmd = CMD_DETAILS; }
             else if (ARG_EQ(arg, "-b", "--basic"  )) { cmd = CMD_BASIC;   }
             else if (ARG_EQ(arg, "-m", "--memory" )) { cmd = CMD_BINARY;  }
             else if (ARG_EQ(arg, "-m", "--binary" )) { cmd = CMD_BINARY;  }
@@ -622,10 +486,10 @@ int main(int argc, char *argv[]) {
     if( !tap_file ) { fatal_error("Failed to open file '%s'", filename); }
     switch( cmd ) {
         case CMD_LIST:
-            err_code = print_zx_tap_blocks(tap_file, TRUE);
+            err_code = fprint_block_list(stdout, tap_file);
             break;
-        case CMD_PRINT:
-            err_code = print_zx_tap_blocks(tap_file, FALSE);
+        case CMD_DETAILS:
+            err_code = fprint_block_list(stdout, tap_file);
             break;
         case CMD_BASIC:
             err_code = fprint_zx_basic_program(stdout, tap_file, NULL, -1);
@@ -635,9 +499,6 @@ int main(int argc, char *argv[]) {
             break;
         case CMD_EXTRACT:
             err_code = extract_zx_blocks(tap_file, "./output", NULL, -1);
-            break;
-        case CMD_TO_HEX:
-            err_code = convert_zx_tap_to_hex("output.hex", tap_file);
             break;
         default:
             fatal_error( "Unknown command '%d'", cmd );

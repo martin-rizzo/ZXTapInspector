@@ -64,7 +64,7 @@ int _hex_fprint_data_record(FILE* ofile, unsigned address, const BYTE* data, uns
  * Writes an EOF record to an Intel HEX file.
  * @param ofile  File pointer to the output file
  * @return
- *    0 on success, -1 if an error occurs during file writing
+ *    0 on success, or an error code indicating what went wrong
  */
 int _hex_fprint_eof_record(FILE* ofile) {
     const unsigned reg_type = 0x01;
