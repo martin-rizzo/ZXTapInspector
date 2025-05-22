@@ -31,10 +31,11 @@ typedef enum ZXS_BLKTYPE {
  * Data types for ZX-Spectrum TAP file blocks
  */
 typedef enum ZXS_DATATYPE {
-    ZXS_DATATYPE_BASIC   = 0,  /**< The block contains a BASIC program */
-    ZXS_DATATYPE_NUMBERS = 1,  /**< The block contains a number array */
-    ZXS_DATATYPE_STRINGS = 2,  /**< The block contains a character array */
-    ZXS_DATATYPE_CODE    = 3   /**< The block contains binary code (machine language) */
+    ZXS_DATATYPE_ANY     = 0xFF, /**< Any type of data */
+    ZXS_DATATYPE_BASIC   = 0,    /**< The block contains a BASIC program */
+    ZXS_DATATYPE_NUMBERS = 1,    /**< The block contains a number array */
+    ZXS_DATATYPE_STRINGS = 2,    /**< The block contains a character array */
+    ZXS_DATATYPE_CODE    = 3     /**< The block contains binary code (machine language) */
 } ZXS_DATATYPE;
 
 /**
@@ -65,16 +66,18 @@ typedef struct ZXSHeader {
  * @return The string representation of the data type.
  */
 const char *zxs_get_datatype_name(ZXS_DATATYPE datatype, char* buffer64) {
-    /* name deberia ser un buffer de 64 characters */
+    const char* name;
     assert( buffer64 != NULL );
-    switch(datatype) {
-        case ZXS_DATATYPE_BASIC:   return "BASIC-PROGRAM";
-        case ZXS_DATATYPE_NUMBERS: return "NUMBER-ARRAY";
-        case ZXS_DATATYPE_STRINGS: return "CHARACTER-ARRAY";
-        case ZXS_DATATYPE_CODE:    return "BINARY-CODE";
+    switch( datatype ) {
+        case ZXS_DATATYPE_BASIC:   name = "BASIC-PROGRAM"; break;
+        case ZXS_DATATYPE_NUMBERS: name = "NUMBER-ARRAY" ; break;
+        case ZXS_DATATYPE_STRINGS: name = "STRING-ARRAY" ; break;
+        case ZXS_DATATYPE_CODE:    name = "CODE"         ; break;
+        default:
+            sprintf(buffer64, "UNKNOWN(%d)", datatype);
+            name = buffer64;
     }
-    sprintf(buffer64, "UNKNOWN(%d)", datatype);
-    return buffer64;
+    return name;
 }
 
 /**
@@ -118,6 +121,8 @@ ZXSTapBlock* zxs_read_tap_block(FILE* tap_file) {
  * @return TRUE if the block is a valid header block and parsing succeeds, FALSE otherwise.
  */
 BOOL zxs_parse_header(ZXSHeader *header, const ZXSTapBlock *block) {
+    int i;
+
     assert( header!=NULL );
     if( block==NULL ) {
         return FALSE;
@@ -127,7 +132,10 @@ BOOL zxs_parse_header(ZXSHeader *header, const ZXSTapBlock *block) {
     }
     header->datatype = block->data[0];
     memcpy( header->filename, &block->data[1], 10);
-    header->filename[10] = header->filename[11] = '\0';
+    header->filename[11] =  header->filename[10] = '\0';
+    for( i=9; i>=0 && header->filename[i]==' '; i--) {
+        header->filename[i] = '\0';
+    }
     header->length = GET_LE_WORD(block->data, 11);
     header->param1 = GET_LE_WORD(block->data, 13);
     header->param2 = GET_LE_WORD(block->data, 15);

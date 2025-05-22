@@ -48,19 +48,24 @@ const char HELP[] =
 ""                                                                                         "\n"
 "Options:"                                                                                 "\n"
 "  -l, --list"                                                                             "\n"
-"        List all blocks contained in the specified .tap file."                            "\n"
+"        List all blocks contained in the .tap file."                                      "\n"
 ""                                                                                         "\n"
-"  -d, --detail"                                                                           "\n"
-"        Display detailed information about each block (e.g., header data, sizes, types)." "\n"
+"  -p, --print <n>"                                                                        "\n"
+"        Print the specified block. The parameter can be either:"                          "\n"
+"          - A numeric index (e.g., \"1\" for the first block)"                            "\n"
+"          - A block name prefixed with a colon (e.g., \":loader\")"                       "\n"
+"        Depending on the block type, it is displayed in an appropriate format"            "\n"
 ""                                                                                         "\n"
 "  -b, --basic"                                                                            "\n"
-"        Output BASIC code stored within one or more blocks. This command detokenizes the binary""\n"
-"        data to produce human-readable BASIC code."                                       "\n"
+"        Output the first BASIC program found within the .tap file."                       "\n"
+""                                                                                         "\n"
+"  -c, --code"                                                                             "\n"
+"        Output the first binary code found within the .tap file."                         "\n"
 ""                                                                                         "\n"
 "  -x, --extract"                                                                          "\n"
 "        Extract all blocks from the .tap file into separate files:"                       "\n"
-"          • Basic code is saved as a .bas text file."                                     "\n"
-"          • Machine code is converted to an Intel HEX (.hex) format."                     "\n"
+"          - Basic code is saved as a .bas text file."                                     "\n"
+"          - Machine code is converted to an Intel HEX (.hex) format."                     "\n"
 "        The extracted files are placed in a folder named after the original tape file."   "\n"
 ""                                                                                         "\n"
 "  -h, --help"                                                                             "\n"
@@ -77,11 +82,14 @@ const char HELP[] =
 "      Show detailed block information for 'example.tap'."                                 "\n"
 ""                                                                                         "\n"
 "  zxtapi -b example.tap"                                                                  "\n"
-"      Output the BASIC code stored in 'example.tap'."                                     "\n"
+"      Output the first BASIC code stored in 'example.tap'."                               "\n"
 ""                                                                                         "\n"
 "  zxtapi -x example.tap"                                                                  "\n"
 "      Extract and convert all blocks from 'example.tap' into separate files."             "\n"
 "\n";
+
+/* The index of the first header in a TAP file */
+#define FIRST_HEADER_INDEX 1
 
 /**
  * Macro to check the arguments passed by command line
@@ -95,7 +103,7 @@ const char HELP[] =
 /**
  * A binary code block in memory
  */
-typedef struct _BinaryCode {
+typedef struct BinaryCode {
     unsigned int start;        /**< Start address of the code block in memory */
     unsigned int end;          /**< End address of the code block in memory */
     unsigned int entry_point;  /**< Entry point address of the code block in memory */
@@ -103,6 +111,12 @@ typedef struct _BinaryCode {
     char         data[1];      /**< Flexible array containing the actual binary code data */
 } BinaryCode;
 
+
+const char *get_selected_name(const char* print_param) {
+    if( !print_param ) { return ""; }
+    if( print_param[0] == ':' ) { return &print_param[1]; }
+    return NULL;
+}
 
 /*---------------------------- COLORED OUTPUT -----------------------------*/
 
@@ -192,7 +206,8 @@ void print_help(char *argv[]) {
     printf("%s", HELP);
 }
 
-/*------------------------------ SUB-COMMANDS ------------------------------*/
+
+/*------------------------ BLOCK/HEADER FUNCTIONS -------------------------*/
 
 /**
  * Searches for a specific header in a TAP file based on optional criteria.
@@ -214,7 +229,7 @@ BOOL find_header(ZXSHeader* header, FILE* tap_file, const char* name, int index,
     BOOL is_block_valid, found;
 
     /* loop through all TAP blocks until the target header is found */
-    header_index   = 0;
+    header_index   = FIRST_HEADER_INDEX;
     is_block_valid = TRUE; found = FALSE;
     while( is_block_valid && !found )
     {
@@ -225,7 +240,10 @@ BOOL find_header(ZXSHeader* header, FILE* tap_file, const char* name, int index,
             /* check if the current header matches the selected criteria */
             if( name             ) { found = (0==strcmp(header->filename, name)); }
             if( index>=0         ) { found = (header_index == index); }
-            if( !name && index<0 ) { found = (header->datatype == type ); }
+            if( !name && index<0 ) {
+                if( type == ZXS_DATATYPE_ANY ) { found = TRUE; }
+                else                           { found = (header->datatype == type ); }
+            }
             ++header_index;
         }
         free( block ); block = NULL;
@@ -233,8 +251,44 @@ BOOL find_header(ZXSHeader* header, FILE* tap_file, const char* name, int index,
     return found;
 }
 
+int fprint_zx_basic_program_block(FILE* output, FILE* tap_file, const ZXSHeader* header) {
+    ZXSTapBlock *block = NULL;
+    int err_code = 0;
+    
+    /* read the data block, assuming that the header has already been read */
+    block = zxs_read_tap_block(tap_file);
+    if( block==NULL )
+    { error("Error reading BASIC program, no data block found"); return err_code=1; }
+
+    /* print the detokenized BASIC program and return */
+    err_code = zxs_fprint_basic_program(output, block->data, block->datasize);
+
+    /* free the block data and return */
+    free(block);
+    return err_code;
+}
+
+int fprint_zx_binary_code_block(FILE* output, FILE* tap_file, const ZXSHeader* header) {
+    ZXSTapBlock *block = NULL;
+    int err_code = 0;
+
+    /* read the data block, assuming that the header has already been read */
+    block = zxs_read_tap_block(tap_file);
+    if( block==NULL )
+    { error("Error reading binary code, no data block found"); return err_code=1; }
+
+    /* print the binary code in Intel HEX format */
+    err_code = fprint_hex_data(output, header->param1, block->data, block->datasize);
+
+    /* free the block data and return */
+    free(block); block=NULL;
+    return err_code;
+}
+
+/*------------------------------ SUB-COMMANDS ------------------------------*/
+
 /**
- * Prints a formatted list of TAP blocks to the specified output file.
+ * Prints a formatted list of all TAP blocks in a TAP file.
  * @param output    FILE pointer to the output stream where the block list will be printed.
  * @param tap_file  FILE pointer to the TAP file being processed.
  * @return
@@ -245,16 +299,18 @@ int fprint_block_list(FILE* output, FILE* tap_file) {
     ZXSHeader    header;
     int          header_index, block_index;
     BOOL         is_block_valid;
-    char buffer16[16];
-    char buffer32[32];
+    char buffer20[20];
+    char datatype_name_buffer[32];
     int  err_code = 0;
+    static const char THEADER[]=" IDX | name       | type          | Length | Param1 | Param2 |\n";
+    static const char TLINE[]  ="-----|------------|---------------|--------|--------|--------|\n";
+    static const BOOL padding = TRUE;
 
     /* loop through all TAP blocks */
-    header_index   = 0;
+    header_index   = FIRST_HEADER_INDEX;
     block_index    = 0;
     is_block_valid = TRUE;
-    printf("IDX: name       : type         : Length : Param1 : Param2 \n");
-    printf("---:------------:--------------:--------:--------:--------\n");
+    fprintf(output, "%s%s%s", padding ? "\n" : "", THEADER, TLINE);
     while( is_block_valid )
     {
         /* read next block from TAP file */
@@ -263,23 +319,25 @@ int fprint_block_list(FILE* output, FILE* tap_file) {
         if( is_block_valid ) {
             if( zxs_parse_header(&header, block) )
             {
-                sprintf(buffer16, "\"%s\"", header.filename);
-                printf(" %02d:%-12s:%-14s %6d    %6d  %6d\n",
-                       header_index, buffer16,
-                       zxs_get_datatype_name(header.datatype, buffer32),
+                if( header_index != FIRST_HEADER_INDEX ) { fprintf(output, TLINE); }
+                sprintf(buffer20, "\":%s\"", header.filename);
+                fprintf(output, " %3d  :%-12s %-15s %6d   %6d   %6d\n",
+                       header_index, header.filename,
+                       zxs_get_datatype_name(header.datatype, datatype_name_buffer),
                        header.length, header.param1, header.param2
                        );
                 ++header_index; block_index=0;
             }
             else {
-                sprintf(buffer16, "//data%d", block_index);
-                printf("    %-12s %-14s %6d\n", 
-                       "", buffer16, block->datasize
+                sprintf(buffer20, "\\data%d", block_index);
+                fprintf(output, "       %-12s %-15s %6d\n", 
+                       "", buffer20, block->datasize
                        );
             }
         }
         free( block ); block = NULL;
     }
+    fprintf(output, "%s%s", TLINE, padding ?  "\n" : "");
     return err_code;
 }
 
@@ -298,26 +356,20 @@ int fprint_block_list(FILE* output, FILE* tap_file) {
  *    0 on success, or an error code indicating what went wrong
  */
 int fprint_zx_basic_program(FILE* output, FILE* tap_file, const char* selected_name, int selected_idx) {
-    ZXSHeader header; ZXSTapBlock *block; BOOL found;
+    ZXSHeader header; BOOL found;
     int err_code = 0;
 
-    /* search for the selected BASIC program in the TAP file */
+    /* search for the selected BASIC program header in the TAP file */
     found = find_header(&header, tap_file, selected_name, selected_idx, ZXS_DATATYPE_BASIC);
 
     /* handle error cases */
     if( !found  )
-    { error("No BASIC program found"); return 1; }
+    { error("No BASIC program found"); return err_code=1; }
     if( found && header.datatype!=ZXS_DATATYPE_BASIC )
-    { error("Selected block is not a BASIC program"); return 1; }
+    { error("Selected block is not a BASIC program"); return err_code=1; }
 
-    /* read the actual data block after header */
-    block = zxs_read_tap_block(tap_file);
-    if( block==NULL )
-    { error("Error reading BASIC program, no data block found"); return 1; }
-
-    /* print the detokenized BASIC program and return */
-    err_code = zxs_fprint_basic_program(output, block->data, block->datasize);
-    free(block); block=NULL;
+    /* print the actual BASIC program */
+    err_code = fprint_zx_basic_program_block(output, tap_file, &header);
     return err_code;
 }
 
@@ -335,7 +387,7 @@ int fprint_zx_basic_program(FILE* output, FILE* tap_file, const char* selected_n
  *    0 on success, or an error code indicating what went wrong
  */
 int fprint_zx_binary_code(FILE* output, FILE* tap_file, const char* selected_fn, int selected_idx) {
-    ZXSHeader header; ZXSTapBlock *block; BOOL found;
+    ZXSHeader header; BOOL found;
     int err_code = 0;
 
     /* search for the selected binary code in the TAP file */
@@ -343,20 +395,67 @@ int fprint_zx_binary_code(FILE* output, FILE* tap_file, const char* selected_fn,
 
     /* handle error cases */
     if( !found  )
-    { error("No binary code found"); return 1; }
+    { error("No binary code found"); return err_code=1; }
     if( found && header.datatype!=ZXS_DATATYPE_CODE )
-    { error("Selected block is not a binary code"); return 1; }
+    { error("Selected block is not a binary code"); return err_code=1; }
 
-    /* read the actual data block after header */
-    block = zxs_read_tap_block(tap_file);
-    if( block==NULL )
-    { error("Error reading binary code, no data block found"); return 1; }
-
-    /* print the binary code in Intel HEX format and return */
-    err_code = fprint_hex_data(output, header.param1, block->data, block->datasize);
-    free(block); block=NULL;
+    /* print the actual binary code */
+    err_code = fprint_zx_binary_code_block(output, tap_file, &header);
     return err_code;
 }
+
+/**
+ * Prints any type of ZX Spectrum block from a TAP file.
+ * 
+ * This function searches for a block in a TAP file matching the provided name or index,
+ * then prints the block content based on its type. It supports BASIC programs, binary code,
+ * and other block types, though some types may not be fully implemented.
+ * 
+ * @param output         File pointer to the output file where the block content will be printed.
+ * @param tap_file       File pointer to the TAP file containing the ZX Spectrum data.
+ * @param selected_name  Optional block name to match. If NULL, name-based filtering is skipped.
+ * @param selected_idx   Optional block index to match. If -1, index-based filtering is skipped.
+ * @return
+ *    0 on success, or an error code indicating what went wrong
+ */
+int fprint_any_zx_block(FILE* output, FILE* tap_file, const char* selected_name, int selected_idx) {
+    ZXSHeader header; ZXSTapBlock *block; BOOL found;
+    int err_code = 0;
+    
+    /* search for any block type that matches the given name or index */
+    found = find_header(&header, tap_file, selected_name, selected_idx, ZXS_DATATYPE_ANY);
+
+    /* handle error cases */
+    if( !found  ) {
+        if( selected_name   ) { error("No block found with name \"%s\"", selected_name); }
+        if( selected_idx>=0 ) { error("No block at index %d", selected_idx); }
+        return err_code=1;
+    }
+
+    /* print the block based on its type */
+    switch( header.datatype ) {
+        case ZXS_DATATYPE_BASIC:
+            err_code = fprint_zx_basic_program_block(output, tap_file, &header);
+            break;
+        case ZXS_DATATYPE_NUMBERS:
+            error("Number array blocks are not supported yet.");
+            err_code = 1;
+            break;
+        case ZXS_DATATYPE_STRINGS:
+            error("String array blocks are not supported yet.");
+            err_code = 1;
+            break;
+        case ZXS_DATATYPE_CODE:
+            err_code = fprint_zx_binary_code_block(output, tap_file, &header);
+            break;
+        default:
+            error("Unsupported block type: %d", header.datatype);
+            err_code = 1;
+            break;
+    }
+    return err_code;
+}
+
 
 int extract_zx_blocks(FILE* tap_file, const char* output_dirname, const char* selected_fn, int selected_idx) {
     ZXSTapBlock  *block;
@@ -366,7 +465,7 @@ int extract_zx_blocks(FILE* tap_file, const char* output_dirname, const char* se
     int err_code = 0;
 
     /* loop through all TAP blocks extracting the selected ones */
-    header_index   = 0;
+    header_index   = FIRST_HEADER_INDEX;
     found          = FALSE;
     is_block_valid = TRUE;
     while( is_block_valid )
@@ -429,7 +528,9 @@ int main(int argc, char *argv[]) {
     char *arg;
     BinaryCode *code;
     int err_code = 0;
-    enum { CMD_HELP, CMD_VERSION, CMD_LIST, CMD_DETAILS, CMD_BASIC, CMD_BINARY, CMD_EXTRACT } cmd;
+    const char *selected_name  = NULL;
+    int         selected_index = FIRST_HEADER_INDEX;
+    enum { CMD_HELP, CMD_VERSION, CMD_LIST, CMD_DETAILS, CMD_PRINT, CMD_BASIC, CMD_BINARY, CMD_EXTRACT } cmd;
 
     /* check if at least one parameter is provided */
     if (argc < 2) {
@@ -445,9 +546,13 @@ int main(int argc, char *argv[]) {
         if( arg[0] == '-' ) {
             if      (ARG_EQ(arg, "-l", "--list"   )) { cmd = CMD_LIST;    }
             else if (ARG_EQ(arg, "-d", "--detail" )) { cmd = CMD_DETAILS; }
+            else if (ARG_EQ(arg, "-p", "--print"  )) { cmd = CMD_PRINT; ++i;
+                if( i >= argc ) { fatal_error("Missing value for --print"); }
+                selected_name  = get_selected_name(argv[i]);
+                selected_index = selected_name ? -1 : atoi(argv[i]);
+            }
             else if (ARG_EQ(arg, "-b", "--basic"  )) { cmd = CMD_BASIC;   }
-            else if (ARG_EQ(arg, "-m", "--memory" )) { cmd = CMD_BINARY;  }
-            else if (ARG_EQ(arg, "-m", "--binary" )) { cmd = CMD_BINARY;  }
+            else if (ARG_EQ(arg, "-c", "--code"   )) { cmd = CMD_BINARY;  }
             else if (ARG_EQ(arg, "-x", "--extract")) { cmd = CMD_EXTRACT; }
             else if (ARG_EQ(arg, "-h", "--help"   )) { cmd = CMD_HELP;    }
             else if (ARG_EQ(arg, "-v", "--version")) { cmd = CMD_VERSION; }
@@ -490,6 +595,9 @@ int main(int argc, char *argv[]) {
             break;
         case CMD_DETAILS:
             err_code = fprint_block_list(stdout, tap_file);
+            break;
+        case CMD_PRINT:
+            err_code = fprint_any_zx_block(stdout, tap_file, selected_name, selected_index);
             break;
         case CMD_BASIC:
             err_code = fprint_zx_basic_program(stdout, tap_file, NULL, -1);
