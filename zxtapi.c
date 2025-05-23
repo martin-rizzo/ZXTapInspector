@@ -39,55 +39,56 @@
 #include "zxs_bas.h"
 #include "zxs_tap.h"
 #include "fmt_hex.h"
-const char HELP[] =
-"Usage: zxtapi [OPTIONS] FILE.tap"                                                         "\n"
-""                                                                                         "\n"
-"Description:"                                                                             "\n"
-"  ZXTapInspector (zxtapi) is a command-line tool for inspecting ZX Spectrum .tap files."  "\n"
-"  It enables you to list blocks, view detailed block information, extract BASIC code,"    "\n"
-"  and convert tape data into usable file formats."                                        "\n"
-""                                                                                         "\n"
-"Options:"                                                                                 "\n"
-"  -l, --list"                                                                             "\n"
-"        List all blocks contained in the .tap file."                                      "\n"
-""                                                                                         "\n"
-"  -p, --print <n>"                                                                        "\n"
-"        Print the specified block. The parameter can be either:"                          "\n"
-"          - A numeric index (e.g., \"1\" for the first block)"                            "\n"
-"          - A block name prefixed with a colon (e.g., \":loader\")"                       "\n"
-"        Depending on the block type, it is displayed in an appropriate format"            "\n"
-""                                                                                         "\n"
-"  -b, --basic"                                                                            "\n"
-"        Output the first BASIC program found within the .tap file."                       "\n"
-""                                                                                         "\n"
-"  -c, --code"                                                                             "\n"
-"        Output the first binary code found within the .tap file."                         "\n"
-""                                                                                         "\n"
-"  -x, --extract"                                                                          "\n"
-"        Extract all blocks from the .tap file into separate files:"                       "\n"
-"          - any BASIC program is saved as a .bas untokenized text file."                  "\n"
-"          - any binary code is saved as a Intel HEX (.hex) format."                       "\n"
-"        The extracted files are placed in a folder named after the original tape file."   "\n"
-""                                                                                         "\n"
-"  -h, --help"                                                                             "\n"
-"        Show this help message and exit."                                                 "\n"
-""                                                                                         "\n"
-"  -v, --version"                                                                          "\n"
-"        Display version information."                                                     "\n"
-""                                                                                         "\n"
-"Examples:"                                                                                "\n"
-"  zxtapi example.tap"                                                                     "\n"
-"      List all blocks found within 'example.tap'."                                        "\n"
-""                                                                                         "\n"
-"  zxtapi -d example.tap"                                                                  "\n"
-"      Show detailed block information for 'example.tap'."                                 "\n"
-""                                                                                         "\n"
-"  zxtapi -b example.tap"                                                                  "\n"
-"      Output the first BASIC code stored in 'example.tap'."                               "\n"
-""                                                                                         "\n"
-"  zxtapi -x example.tap"                                                                  "\n"
-"      Extract and convert all blocks from 'example.tap' into separate files."             "\n"
-"\n";
+const char* HELP[] = {
+"Usage: zxtapi [OPTIONS] FILE.tap"                                                       ,
+""                                                                                       ,
+"Description:"                                                                           ,
+"  ZXTapInspector (zxtapi) is a command-line tool for inspecting ZX Spectrum .tap files.",
+"  It enables you to list blocks, view detailed block information, extract BASIC code,"  ,
+"  and convert tape data into usable file formats."                                      ,
+""                                                                                       ,
+"Options:"                                                                               ,
+"  -l, --list"                                                                           ,
+"        List all blocks contained in the .tap file."                                    ,
+""                                                                                       ,
+"  -p, --print <n>"                                                                      ,
+"        Print the specified block. The parameter can be either:"                        ,
+"          - A numeric index (e.g., \"1\" for the first block)"                          ,
+"          - A block name prefixed with a colon (e.g., \":loader\")"                     ,
+"        Depending on the block type, it is displayed in an appropriate format"          ,
+""                                                                                       ,
+"  -b, --basic"                                                                          ,
+"        Output the first BASIC program found within the .tap file."                     ,
+""                                                                                       ,
+"  -c, --code"                                                                           ,
+"        Output the first binary code found within the .tap file."                       ,
+""                                                                                       ,
+"  -x, --extract"                                                                        ,
+"        Extract all blocks from the .tap file into separate files:"                     ,
+"          - any BASIC program is saved as a .bas untokenized text file."                ,
+"          - any binary code is saved as a Intel HEX (.hex) format."                     ,
+"        The extracted files are placed in a folder named after the original tape file." ,
+""                                                                                       ,
+"  -h, --help"                                                                           ,
+"        Show this help message and exit."                                               ,
+""                                                                                       ,
+"  -v, --version"                                                                        ,
+"        Display version information."                                                   ,
+""                                                                                       ,
+"Examples:"                                                                              ,
+"  zxtapi example.tap"                                                                   ,
+"      List all blocks found within 'example.tap'."                                      ,
+""                                                                                       ,
+"  zxtapi -d example.tap"                                                                ,
+"      Show detailed block information for 'example.tap'."                               ,
+""                                                                                       ,
+"  zxtapi -b example.tap"                                                                ,
+"      Output the first BASIC code stored in 'example.tap'."                             ,
+""                                                                                       ,
+"  zxtapi -x example.tap"                                                                ,
+"      Extract and convert all blocks from 'example.tap' into separate files."           ,
+"", NULL
+};
 
 /* The index of the first header in a TAP file */
 #define FIRST_HEADER_INDEX 1
@@ -134,7 +135,7 @@ char NOCOLOR[] = "\033[0m";
 /**
  * Disables color output by resetting all color codes to empty strings
  */
-void disable_colors() {
+void disable_colors(void) {
     RED[0]     = '\0';
     GREEN[0]   = '\0';
     YELLOW[0]  = '\0';
@@ -159,11 +160,9 @@ void print_colored_error(const char *err_type,
                          const char *bra_color,
                          const char *tex_color,
                          const char *format, va_list vlist) {
-    static char text[1024];  /**< static buffer to store formatted text */
-
-    /* format the variable arguments into the text buffer and print the colored error */
-    vsnprintf(text, sizeof(text), format, vlist);
-    fprintf(stderr, "\n%s[%s%s%s]%s %s\n", bra_color, err_color, err_type, bra_color, tex_color, text);
+    fprintf (stderr, "\n%s[%s%s%s]%s ", bra_color, err_color, err_type, bra_color, tex_color);
+    vfprintf(stderr, format, vlist);
+    fprintf (stderr, "\n");
 }
 
 /**
@@ -203,8 +202,18 @@ void fatal_error(const char *message, ...) {
     exit(1);
 }
 
-void print_help(char *argv[]) {
-    printf("%s", HELP);
+/**
+ * Displays help messages to stdout.
+ * 
+ * Although `argc` and `argv` are not used in this implementation, it allows
+ * for potential future extensions where context-specific help could be
+ * determined based on arguments.
+ *
+ * @param argc Number of command-line arguments (typically from `main()`).
+ * @param argv Array of command-line arguments (typically from `main()`).
+ */
+void print_help(int argc, char *argv[]) {
+    int i = 0; while( HELP[i] ) { printf("%s\n",HELP[i++]); }
 }
 
 
@@ -573,7 +582,7 @@ int main(int argc, char *argv[]) {
     /* check if at least one parameter is provided */
     if (argc < 2) {
         error("No parameters were provided.");
-        print_help(argv);
+        print_help(argc,argv);
         return 1;
     }
 
@@ -609,7 +618,7 @@ int main(int argc, char *argv[]) {
     /* handle help & version commands */
     switch( cmd ) {
         case CMD_HELP:
-            print_help(argv);
+            print_help(argc,argv);
             return 0;
         case CMD_VERSION:
             printf("Version 0.1.0\n");

@@ -21,6 +21,11 @@
 #   include <sys/stat.h>
 #endif
 
+char* strdup_(const char* str) {
+    char *allocated_str;
+    return str && (allocated_str=malloc(strlen(str)+2)) ? strcpy(allocated_str, str) : NULL;
+}
+
 /**
  * Extracts the filename from a given path.
  * @param path A string representing the file path.
@@ -43,7 +48,7 @@ const char* get_filename(const char* path) {
  *    The caller is responsible for freeing this memory.
  */
 char* alloc_name(const char* path) {
-    char* name = strdup( get_filename( path ) );
+    char* name = strdup_( get_filename( path ) );
     char* dot  = strrchr(name, '.');
     if( dot ) { *dot = '\0'; }
     return name;

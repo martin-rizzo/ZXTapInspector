@@ -52,10 +52,11 @@ int _hex_checksum(unsigned reg_type, unsigned address, const BYTE* data, unsigne
  */
 int _hex_fprint_data_record(FILE* ofile, unsigned address, const BYTE* data, unsigned datasize) {
     const unsigned reg_type = 0x00;
+    unsigned i;
 
     /* write the record */
     fprintf(ofile, ":%02X%04X%02X", datasize, address, reg_type);
-    for (unsigned i = 0; i < datasize; i++) { fprintf(ofile, "%02X", data[i]); }
+    for( i=0 ; i < datasize ; i++ ) { fprintf(ofile, "%02X", data[i]); }
     fprintf(ofile, "%02X", _hex_checksum(reg_type, address, data, datasize));
     return 0;
 }
