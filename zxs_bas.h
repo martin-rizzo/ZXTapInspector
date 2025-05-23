@@ -174,7 +174,7 @@ int zxs_fprint_basic_program(FILE* file, BYTE* data, unsigned datasize) {
         if( line_length > datasize ) { error(BUFFER_READ_OVERFLOW_MSG); return 1; }
         
         /* process and print the BASIC line */
-        printf("%5d", line_number);
+        fprintf(file, "%5d", line_number);
         err_code = zxs_fprint_basic_line(file, data, line_length);
         if( err_code ) { return err_code; }
         /* printf("\n"); */

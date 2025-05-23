@@ -35,6 +35,7 @@
 #include <stdarg.h>
 #include <assert.h>
 #include "common.h"
+#include "file_dir.h"
 #include "zxs_bas.h"
 #include "zxs_tap.h"
 #include "fmt_hex.h"
@@ -64,8 +65,8 @@ const char HELP[] =
 ""                                                                                         "\n"
 "  -x, --extract"                                                                          "\n"
 "        Extract all blocks from the .tap file into separate files:"                       "\n"
-"          - Basic code is saved as a .bas text file."                                     "\n"
-"          - Machine code is converted to an Intel HEX (.hex) format."                     "\n"
+"          - any BASIC program is saved as a .bas untokenized text file."                  "\n"
+"          - any binary code is saved as a Intel HEX (.hex) format."                       "\n"
 "        The extracted files are placed in a folder named after the original tape file."   "\n"
 ""                                                                                         "\n"
 "  -h, --help"                                                                             "\n"
@@ -207,13 +208,13 @@ void print_help(char *argv[]) {
 }
 
 
-/*------------------------ BLOCK/HEADER FUNCTIONS -------------------------*/
+/*---------------------- BLOCK HEADER/DATA FUNCTIONS ----------------------*/
 
 /**
  * Searches for a specific header in a TAP file based on optional criteria.
  * 
  * The criteria can be based on name, index, or header type. If multiple criteria are provided,
- * the function prioritizes name checks first, then index checks, and finally type checks.
+ * the function prioritizes name checks first, then index checks.
  * 
  * @param header    Pointer to the ZXHeaderInfo where the matched header will be stored. 
  * @param tap_file  FILE pointer to the TAP file being processed.
@@ -223,7 +224,7 @@ void print_help(char *argv[]) {
  * @return
  *    TRUE if a matching header is found, FALSE otherwise.
  */
-BOOL find_header(ZXSHeader* header, FILE* tap_file, const char* name, int index, ZXS_DATATYPE type) {
+BOOL find_zx_tap_header(ZXSHeader* header, FILE* tap_file, const char* name, int index, ZXS_DATATYPE type) {
     ZXSTapBlock *block;
     int          header_index;
     BOOL is_block_valid, found;
@@ -238,9 +239,9 @@ BOOL find_header(ZXSHeader* header, FILE* tap_file, const char* name, int index,
         is_block_valid  = (block != NULL);
         if( is_block_valid && zxs_parse_header(header, block) ) {
             /* check if the current header matches the selected criteria */
-            if( name             ) { found = (0==strcmp(header->filename, name)); }
-            if( index>=0         ) { found = (header_index == index); }
-            if( !name && index<0 ) {
+            if( !found && name     ) { found = (0==strcmp(header->filename, name)); }
+            if( !found && index>=0 ) { found = (header_index == index); }
+            if( !name && index<0   ) {
                 if( type == ZXS_DATATYPE_ANY ) { found = TRUE; }
                 else                           { found = (header->datatype == type ); }
             }
@@ -251,37 +252,55 @@ BOOL find_header(ZXSHeader* header, FILE* tap_file, const char* name, int index,
     return found;
 }
 
-int fprint_zx_basic_program_block(FILE* output, FILE* tap_file, const ZXSHeader* header) {
-    ZXSTapBlock *block = NULL;
+/**
+ * Prints data from a ZX TAP file block based on the header's data type.
+ * 
+ * This function reads the next data block in the TAP file and prints its
+ * contents to the specified output. The function assumes the provided header
+ * is valid and corresponds to the data block to be printed.
+ * 
+ * @param output     FILE pointer to the output file where data will be printed. (may be stdout)
+ * @param tap_file   FILE pointer to the TAP file being processed.
+ * @param header     Pointer to a ZXSHeader containing the block header information.
+ * @return
+ *    0 on success, or an error code indicating what went wrong
+ */
+int fprint_zx_tap_data(FILE* output, FILE* tap_file, const ZXSHeader* header) {
+    ZXSTapBlock *block;
     int err_code = 0;
-    
+
     /* read the data block, assuming that the header has already been read */
     block = zxs_read_tap_block(tap_file);
-    if( block==NULL )
-    { error("Error reading BASIC program, no data block found"); return err_code=1; }
+    switch( header->datatype ) {
 
-    /* print the detokenized BASIC program and return */
-    err_code = zxs_fprint_basic_program(output, block->data, block->datasize);
+        case ZXS_DATATYPE_BASIC:
+            if( !err_code && block==NULL )
+            { err_code = 1; error("Error reading BASIC program, no data block found"); }
+            if( !err_code )
+            { err_code = !err_code && zxs_fprint_basic_program(output, block->data, block->datasize); }
+            break;
 
-    /* free the block data and return */
+        case ZXS_DATATYPE_NUMBERS:
+            err_code = 1; error("Number array blocks are not supported yet.");
+            break;
+
+        case ZXS_DATATYPE_STRINGS:
+            err_code = 1; error("String array blocks are not supported yet.");
+            break;
+
+        case ZXS_DATATYPE_CODE:
+            if( !err_code && block==NULL )
+            { err_code = 1; error("Error reading binary code, no data block found"); }
+            if( !err_code )
+            { err_code = fprint_hex_data(output, header->param1, block->data, block->datasize); }
+            break;
+
+        default:
+            err_code = 1; error("Unknown data type in header (%d).", header->datatype);
+            break;
+    }
+    /* free the data block and return */
     free(block);
-    return err_code;
-}
-
-int fprint_zx_binary_code_block(FILE* output, FILE* tap_file, const ZXSHeader* header) {
-    ZXSTapBlock *block = NULL;
-    int err_code = 0;
-
-    /* read the data block, assuming that the header has already been read */
-    block = zxs_read_tap_block(tap_file);
-    if( block==NULL )
-    { error("Error reading binary code, no data block found"); return err_code=1; }
-
-    /* print the binary code in Intel HEX format */
-    err_code = fprint_hex_data(output, header->param1, block->data, block->datasize);
-
-    /* free the block data and return */
-    free(block); block=NULL;
     return err_code;
 }
 
@@ -360,7 +379,7 @@ int fprint_zx_basic_program(FILE* output, FILE* tap_file, const char* selected_n
     int err_code = 0;
 
     /* search for the selected BASIC program header in the TAP file */
-    found = find_header(&header, tap_file, selected_name, selected_idx, ZXS_DATATYPE_BASIC);
+    found = find_zx_tap_header(&header, tap_file, selected_name, selected_idx, ZXS_DATATYPE_BASIC);
 
     /* handle error cases */
     if( !found  )
@@ -369,29 +388,29 @@ int fprint_zx_basic_program(FILE* output, FILE* tap_file, const char* selected_n
     { error("Selected block is not a BASIC program"); return err_code=1; }
 
     /* print the actual BASIC program */
-    err_code = fprint_zx_basic_program_block(output, tap_file, &header);
+    err_code = fprint_zx_tap_data(output, tap_file, &header);
     return err_code;
 }
 
 /**
- * Prints a binary code block from a TAP file in Intel HEX format.
+ * Prints a binary code from a TAP file.
  * 
  * This function searches for a binary code block in a TAP file, reads its data, and prints
  * the content in Intel HEX format. It supports optional filtering by filename or index.
  * 
  * @param output         File pointer to the output file where the binary data will be printed.
  * @param tap_file       File pointer to the TAP file containing the ZX Spectrum data.
- * @param selected_fn    Optional filename to match. If NULL, filename-based filtering is skipped.
+ * @param selected_name  Optional block name to match. If NULL, name-based filtering is skipped.
  * @param selected_idx   Optional block index to match. If -1, index-based filtering is skipped.
  * @return
  *    0 on success, or an error code indicating what went wrong
  */
-int fprint_zx_binary_code(FILE* output, FILE* tap_file, const char* selected_fn, int selected_idx) {
+int fprint_zx_binary_code(FILE* output, FILE* tap_file, const char* selected_name, int selected_idx) {
     ZXSHeader header; BOOL found;
     int err_code = 0;
 
     /* search for the selected binary code in the TAP file */
-    found = find_header(&header, tap_file, selected_fn, selected_idx, ZXS_DATATYPE_CODE);
+    found = find_zx_tap_header(&header, tap_file, selected_name, selected_idx, ZXS_DATATYPE_CODE);
 
     /* handle error cases */
     if( !found  )
@@ -400,7 +419,7 @@ int fprint_zx_binary_code(FILE* output, FILE* tap_file, const char* selected_fn,
     { error("Selected block is not a binary code"); return err_code=1; }
 
     /* print the actual binary code */
-    err_code = fprint_zx_binary_code_block(output, tap_file, &header);
+    err_code = fprint_zx_tap_data(output, tap_file, &header);
     return err_code;
 }
 
@@ -422,53 +441,69 @@ int fprint_any_zx_block(FILE* output, FILE* tap_file, const char* selected_name,
     ZXSHeader header; ZXSTapBlock *block; BOOL found;
     int err_code = 0;
     
-    /* search for any block type that matches the given name or index */
-    found = find_header(&header, tap_file, selected_name, selected_idx, ZXS_DATATYPE_ANY);
-
-    /* handle error cases */
-    if( !found  ) {
-        if( selected_name   ) { error("No block found with name \"%s\"", selected_name); }
-        if( selected_idx>=0 ) { error("No block at index %d", selected_idx); }
-        return err_code=1;
+    /* search for the first header that matches the given name or index */
+    /* and if it is found, print the next block content                 */
+    found = find_zx_tap_header(&header, tap_file, selected_name, selected_idx, ZXS_DATATYPE_ANY);
+    if( found ) {
+        err_code = fprint_zx_tap_data(output, tap_file, &header);
     }
-
-    /* print the block based on its type */
-    switch( header.datatype ) {
-        case ZXS_DATATYPE_BASIC:
-            err_code = fprint_zx_basic_program_block(output, tap_file, &header);
-            break;
-        case ZXS_DATATYPE_NUMBERS:
-            error("Number array blocks are not supported yet.");
-            err_code = 1;
-            break;
-        case ZXS_DATATYPE_STRINGS:
-            error("String array blocks are not supported yet.");
-            err_code = 1;
-            break;
-        case ZXS_DATATYPE_CODE:
-            err_code = fprint_zx_binary_code_block(output, tap_file, &header);
-            break;
-        default:
-            error("Unsupported block type: %d", header.datatype);
-            err_code = 1;
-            break;
+    else {
+        /* handle the not-found error */
+        if( selected_name   ) { err_code=1; error("No block found with name \"%s\"", selected_name); }
+        if( selected_idx>=0 ) { err_code=1; error("No block at index %d", selected_idx); }
     }
     return err_code;
 }
 
-
-int extract_zx_blocks(FILE* tap_file, const char* output_dirname, const char* selected_fn, int selected_idx) {
-    ZXSTapBlock  *block;
-    ZXSHeader header;
-    int          header_index;
-    BOOL is_block_valid, is_header_valid, found;
+int extract_zx_block(const char* output_dir, const char* output_name, FILE* tap_file, const ZXSHeader *header) {
+    char *output_ext=NULL, *output_path=NULL;
+    FILE *output=NULL;
     int err_code = 0;
 
+    switch( header->datatype ) {
+        case ZXS_DATATYPE_BASIC:  output_ext = ".bas"; break;
+        case ZXS_DATATYPE_CODE :  output_ext = ".hex"; break;
+        default:
+            output_ext = ".txt";
+            break;
+    }
+    if( !err_code ) {
+        output_path = alloc_unique_path(output_dir, output_name, output_ext);
+        if( !output_path ) { err_code=1; error("Cannot allocate memory for output path"); }
+    }
+    if( !err_code ) {
+        output = fopen(output_path, "wb");
+        if( !output ) { err_code=1; error("Cannot open output file \"%s\"", output_path); }
+    }
+    if( !err_code ) {
+        err_code = fprint_zx_tap_data(output, tap_file, header);
+    }
+    if( output     ) { fclose(output);    }
+    if( output_path) { free(output_path); }
+    return err_code;
+}
+
+int extract_all_zx_blocks(const char* dir_name, FILE* tap_file, const char* selected_name, int selected_idx) {
+    ZXSTapBlock *block;
+    ZXSHeader    header;
+    int          header_index;
+    BOOL is_block_valid, is_header_valid, found;
+    char *output_dir, *output_name;
+    int err_code = 0;
+
+    if( dir_name==NULL || dir_name[0]=='\0' )  {
+        dir_name = "output";
+    }
+    output_dir = alloc_unique_path(NULL, dir_name, NULL);
+    if( !create_directory(output_dir) ) {
+        error("Cannot create output directory \"%s\"", dir_name);
+        err_code = 1;
+    }
+    
     /* loop through all TAP blocks extracting the selected ones */
     header_index   = FIRST_HEADER_INDEX;
-    found          = FALSE;
     is_block_valid = TRUE;
-    while( is_block_valid )
+    while( is_block_valid && !err_code )
     {
         /* read next block from TAP file */
         block           = zxs_read_tap_block(tap_file);
@@ -477,19 +512,21 @@ int extract_zx_blocks(FILE* tap_file, const char* output_dirname, const char* se
         if( is_header_valid )
         {
             /* check if the current block matches the selected criteria */
-            if     ( selected_fn!=NULL ) { found = strcmp(header.filename, selected_fn)==0; }
-            else if( selected_idx>=0   ) { found = header_index==selected_idx;              }
-            else                         { found = TRUE;                                    }
+            found = FALSE;
+            if( !found && selected_name   ) { found = strcmp(header.filename, selected_name)==0; }
+            if( !found && selected_idx>=0 ) { found = header_index==selected_idx;                }
+            if( !selected_name && selected_idx<0 ) { found = TRUE; }
 
             /* placeholder for block extraction */
             if( found ) {
-                printf("Extracting: %02d_%s\n", header_index, header.filename);
+                output_name = strlen(header.filename)>0 ? header.filename : "data";
+                err_code = extract_zx_block(output_dir, output_name, tap_file, &header);
             }
-
             ++header_index;
         }
         free( block ); block = NULL;
     }
+    free( output_dir );
     return err_code;
 }
 
@@ -528,6 +565,7 @@ int main(int argc, char *argv[]) {
     char *arg;
     BinaryCode *code;
     int err_code = 0;
+    char *dir_name = NULL;
     const char *selected_name  = NULL;
     int         selected_index = FIRST_HEADER_INDEX;
     enum { CMD_HELP, CMD_VERSION, CMD_LIST, CMD_DETAILS, CMD_PRINT, CMD_BASIC, CMD_BINARY, CMD_EXTRACT } cmd;
@@ -606,7 +644,9 @@ int main(int argc, char *argv[]) {
             err_code = fprint_zx_binary_code(stdout, tap_file, NULL, -1);
             break;
         case CMD_EXTRACT:
-            err_code = extract_zx_blocks(tap_file, "./output", NULL, -1);
+            dir_name = alloc_name(filename);
+            err_code = extract_all_zx_blocks(dir_name, tap_file, NULL, -1);
+            free(dir_name);
             break;
         default:
             fatal_error( "Unknown command '%d'", cmd );
