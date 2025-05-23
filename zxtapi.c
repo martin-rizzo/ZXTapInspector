@@ -6,7 +6,7 @@
 | License : MIT
 |- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 |                               ZXTapInspector
-|           A simple CLI tool for inspecting ZX-Spectrum TAP files
+|    A simple CLI tool for inspecting and extracting ZX-Spectrum TAP files
 |
 |    Copyright (c) 2025 Martin Rizzo
 |
