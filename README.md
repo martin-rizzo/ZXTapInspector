@@ -1,4 +1,14 @@
+<div align="center">
+
 # ZXTapInspector
+[![Platform](https://img.shields.io/badge/platform%3A-multiplatform-007BFF)](#)
+[![License](https://img.shields.io/github/license/martin-rizzo/ZXTapInspector?label=license%3A&color=28A745)](#)
+[![Version](https://img.shields.io/github/v/tag/martin-rizzo/ZXTapInspector?label=version%3A&color=D07250)](#)
+[![Last](https://img.shields.io/github/last-commit/martin-rizzo/ZXTapInspector?label=last%20commit%3A)](#)  
+
+<!-- Main Image -->
+<!-- ![ZXTapInspector](./docs/img/zxtapinspector.jpg) -->
+</div>
 
 **ZXTapInspector** is a command-line tool written entirely in C for inspecting ZX-Spectrum ".tap" files. This utility lets you list blocks, view their contents, display the first BASIC program, and even extract each block into separate files using standard compatible formats.
 
@@ -68,6 +78,6 @@ ZXTapInspector began as a simple script for extracting binary data from ZX Spect
 This project is open source and contributions are welcome. If you find any bugs or wish to improve the functionality, do not hesitate to submit a pull request!
 
 ## License
-Copyright (c) 2024-2025 Martin Rizzo  
+Copyright (c) 2025 Martin Rizzo  
 This project is licensed under the MIT license.  
 See the ["LICENSE"](LICENSE) file for details.
