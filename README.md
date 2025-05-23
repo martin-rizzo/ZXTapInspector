@@ -24,22 +24,21 @@
 
 To compile ZXTapInspector, you only need to have a C compiler installed. Follow these steps:
 
-1. **Clone the Repository:**  
+- **Clone the Repository:**
    ```
    git clone https://github.com/martin-rizzo/ZXTapInspector.git
    cd ZXTapInspector
    ```
 
-2. **Compile the Project:**  
-   Depending on your operating system and preferred compiler, choose one of these options:
-
-   ### On Linux (using gcc):
+- **Compile the Project on Linux (using gcc):**  
+  Ensure that gcc is installed on your system and compile the project with:
    ```
-   gcc -o zxtapi zxtapi.c 
+   gcc -o zxtapi zxtapi.c
    ```
 
-   ### On macOS (using clang)
-   macOS uses Clang by default (installed via Xcode Command Line Tools). If you haven't installed it yet, run:
+- **Compile the Project on macOS (using clang):**  
+   macOS uses Clang by default (installed via Xcode Command Line Tools).  
+   If you haven't installed it yet, run:
    ```
    xcode-select --install
    ```
@@ -48,8 +47,8 @@ To compile ZXTapInspector, you only need to have a C compiler installed. Follow 
    ```
    clang -o zxtapi zxtapi.c
    ```
-
-   ### On Windows:
+   
+- **Compile the Project on Windows (using ??):**  
    It has not yet been tested if it compiles on Windows.
 
 
