@@ -19,22 +19,39 @@
   • Machine code is converted to Intel HEX (.hex) format.  
   The extracted files are placed in a folder named after the original tape file (option -x/--extract).
 
+
 ## Installation
 
-To compile ZXTapInspector, you need to have a C compiler installed. Follow these steps:
+To compile ZXTapInspector, you only need to have a C compiler installed. Follow these steps:
 
-1. **Clone the Repository:**
-
+1. **Clone the Repository:**  
    ```
-   git clone https://github.com/your_username/ZXTapInspector.git
+   git clone https://github.com/martin-rizzo/ZXTapInspector.git
    cd ZXTapInspector
    ```
 
 2. **Compile the Project:**  
+   Depending on your operating system and preferred compiler, choose one of these options:
 
+   ### On Linux (using gcc):
    ```
-   gcc -o zxtapi zxtapi.c
+   gcc -o zxtapi zxtapi.c 
    ```
+
+   ### On macOS (using clang)
+   macOS uses Clang by default (installed via Xcode Command Line Tools). If you haven't installed it yet, run:
+   ```
+   xcode-select --install
+   ```
+   
+   Then compile the project with:
+   ```
+   clang -o zxtapi zxtapi.c
+   ```
+
+   ### On Windows:
+   It has not yet been tested if it compiles on Windows.
+
 
 ## Usage
 
@@ -43,6 +60,7 @@ Once compiled, run the tool from the command line:
 ```
 $ ./zxtapi [OPTIONS] FILE.tap
 ```
+
 
 ## Project History
 
