@@ -39,7 +39,8 @@
 #include "zxs_bas.h"
 #include "zxs_tap.h"
 #include "fmt_hex.h"
-const char* HELP[] = {
+const char  VERSION[] = "v1.0";
+const char* HELP[]    = {
 "Usage: zxtapi [OPTIONS] FILE.tap"                                                       ,
 ""                                                                                       ,
 "Description:"                                                                           ,
@@ -618,7 +619,7 @@ int main(int argc, char *argv[]) {
             print_help(argc,argv);
             return 0;
         case CMD_VERSION:
-            printf("Version 0.1.0\n");
+            printf("%s\n", VERSION);
             return 0;
         default:
             break;
