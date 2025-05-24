@@ -3,7 +3,6 @@
 
 This document explains how to clone and compile ZXTapInspector on Windows, macOS, and Linux.
 
----
 
 ## Installation on Windows
 
@@ -43,7 +42,6 @@ This document explains how to clone and compile ZXTapInspector on Windows, macOS
      zxtapi.exe
      ```
 
----
 
 ## Installation on macOS
 
@@ -52,14 +50,12 @@ This document explains how to clone and compile ZXTapInspector on Windows, macOS
     ```bash
     git --version
     ```
-    If Git is not installed, you have two options:  
-      a) **Download the official version:**  
-         - Visit [https://git-scm.com/download/mac](https://git-scm.com/download/mac)
-         - Download and install the package.  
-      b) **Install via Homebrew:**  
-         ```bash
-         brew install git
-         ```
+    If Git is not installed, you have these options:  
+    - **Download and install the official version** from [https://git-scm.com/download/mac](https://git-scm.com/download/mac)
+    - **Or install via Homebrew:**  
+      ```bash
+      brew install git
+      ```
 
 2. **Install Xcode Command Line Tools:**  
    If you haven't already installed the command line tools, do so by running:
@@ -67,7 +63,7 @@ This document explains how to clone and compile ZXTapInspector on Windows, macOS
    xcode-select --install
    ```
 
-3. **Clone the Repository:**
+3. **Clone the Repository:**  
    Open a terminal and run:
    ```bash
    git clone https://github.com/martin-rizzo/ZXTapInspector.git
@@ -86,7 +82,6 @@ This document explains how to clone and compile ZXTapInspector on Windows, macOS
    ./zxtapi
    ```
 
----
 
 ## Installation on Linux
 
